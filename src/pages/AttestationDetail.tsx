@@ -2,6 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useParams, Link } from 'react-router-dom'
 import Breadcrumb from '../components/Breadcrumb'
+import StatusTimeline, { 
+  TimelineStep, 
+  AttestationLifecycleStage,
+  TimelineStepStatus 
+} from '../components/StatusTimeline'
 import './AttestationCertificate.print.css'
 
 // ---------------------------------------------------------------------------
@@ -96,6 +101,83 @@ const PRINT_STATUS: Record<
   verified: { label: 'VERIFIED', glyph: '✓', ariaLabel: 'Status: verified' },
   pending: { label: 'PENDING ON-CHAIN CONFIRMATION', glyph: '◷', ariaLabel: 'Status: pending on-chain confirmation' },
   failed: { label: 'NOT ATTESTED — VALIDATION FAILED', glyph: '✕', ariaLabel: 'Status: validation failed' },
+}
+
+// ---------------------------------------------------------------------------
+// Timeline generation helpers
+// ---------------------------------------------------------------------------
+
+function generateTimelineSteps(
+  attestation: AttestationRecord
+): TimelineStep[] {
+  const baseSteps: TimelineStep[] = [
+    {
+      id: 'submitted',
+      label: 'Submitted',
+      description: 'Attestation request submitted for processing',
+      timestamp: attestation.timestamp,
+      status: 'completed',
+    },
+    {
+      id: 'queued',
+      label: 'Queued',
+      description: 'Request queued for verification processing',
+      status: 'pending',
+    },
+    {
+      id: 'verifying',
+      label: 'Verifying',
+      description: 'Cryptographic verification of revenue data in progress',
+      status: 'pending',
+    },
+    {
+      id: 'anchored',
+      label: 'Anchored',
+      description: 'Merkle root anchored on Stellar blockchain',
+      status: 'pending',
+    },
+    {
+      id: 'finalized',
+      label: 'Finalized',
+      description: 'Attestation finalized and certificate issued',
+      status: 'pending',
+    },
+  ]
+
+  // Map attestation status to timeline progression
+  if (attestation.status === 'verified') {
+    // All steps completed
+    return baseSteps.map((step, index) => ({
+      ...step,
+      status: 'completed' as TimelineStepStatus,
+      timestamp: index === 0 ? attestation.timestamp : undefined,
+    }))
+  } else if (attestation.status === 'pending') {
+    // First step completed, rest pending with second as current
+    return baseSteps.map((step, index) => ({
+      ...step,
+      status: index === 0 
+        ? 'completed' as TimelineStepStatus
+        : index === 1 
+          ? 'current' as TimelineStepStatus
+          : 'pending' as TimelineStepStatus,
+    }))
+  } else if (attestation.status === 'failed') {
+    // First step completed, second step failed
+    return baseSteps.map((step, index) => ({
+      ...step,
+      status: index === 0 
+        ? 'completed' as TimelineStepStatus
+        : index === 1 
+          ? 'failed' as TimelineStepStatus
+          : 'pending' as TimelineStepStatus,
+      description: index === 1 
+        ? `Verification failed: ${attestation.failureReason || 'Unknown error'}`
+        : step.description,
+    }))
+  }
+
+  return baseSteps
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +445,7 @@ export default function AttestationDetail() {
   const printStatus = PRINT_STATUS[attestation.status]
   const issuedOn = formatDate(attestation.timestamp)
   const formattedTotal = `${attestation.totalRevenue} ${attestation.currency}`
+  const timelineSteps = generateTimelineSteps(attestation)
 
   return (
     <article
@@ -702,6 +785,35 @@ export default function AttestationDetail() {
             </span>
           </MetaRow>
         </dl>
+      </section>
+
+      {/* ── Status Timeline (screen-only) ─────────────────────────────────── */}
+      <section
+        className="no-print"
+        aria-label="Attestation lifecycle timeline"
+        style={{
+          marginTop: '2rem',
+          padding: '1.5rem',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+        }}
+      >
+        <h2
+          style={{
+            margin: '0 0 1.25rem 0',
+            fontSize: '1.1rem',
+            fontWeight: 700,
+            color: 'var(--text)',
+          }}
+        >
+          Attestation Progress
+        </h2>
+        <StatusTimeline 
+          steps={timelineSteps} 
+          showTimestamps={true}
+          ariaLabel="Attestation lifecycle timeline showing current progress"
+        />
       </section>
 
       {/* ── Print-only certificate body (seal + statement + footer) ────── */}
