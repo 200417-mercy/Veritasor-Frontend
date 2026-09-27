@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, act } from '@testing-library/react'
 import LocalePicker from './LocalePicker'
-import { LocaleProvider, LocaleContext } from '../../i18n/provider'
+import { LocaleContext } from '../../i18n/provider'
 import messages from '../../i18n/messages/en.json'
 import { IntlProvider } from 'react-intl'
 
