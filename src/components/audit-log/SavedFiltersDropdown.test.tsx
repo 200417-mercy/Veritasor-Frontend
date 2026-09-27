@@ -218,4 +218,14 @@ describe('SavedFiltersDropdown', () => {
     fireEvent.click(screen.getByTestId('saved-filters-trigger'))
     expect(screen.getByText(/2 filters saved/i)).toBeInTheDocument()
   })
+
+  it('respects the maxNameLength override', () => {
+    renderDropdown({ filters: sample, maxNameLength: 10 })
+    fireEvent.click(screen.getByTestId('saved-filters-trigger'))
+    fireEvent.click(screen.getByTestId('saved-filter-rename-f1'))
+    const input = document.querySelector(
+      '[data-testid="saved-filter-row-f1"] input',
+    ) as HTMLInputElement
+    expect(input).toHaveAttribute('maxLength', '10')
+  })
 })
