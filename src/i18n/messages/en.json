@@ -36,7 +36,7 @@
   "accountMenu.language.label": "Language",
   "accountMenu.language.description": "Pick a language. Dates, numbers, and currencies follow that locale. Missing translations fall back to English.",
   "accountMenu.copyGuidance.title": "Translator copy guidance",
-  "accountMenu.copyGuidance.body": "Use ICU MessageFormat for all UI strings. Never concatenate translated fragments or interpolate inside a word. Respect plural, gender, and select rules per locale. Keep labels short and let the layout wrap; do not hard-code layout width. Numbers, dates, and currencies are formatted by the active locale automatically."
+  "accountMenu.copyGuidance.body": "Use ICU MessageFormat for all UI strings. Never concatenate translated fragments or interpolate inside a word. Respect plural, gender, and select rules per locale. Keep labels short and let the layout wrap; do not hard-code layout width. Numbers, dates, and currencies are formatted by the active locale automatically.",
   "milestone.status.pending": "Pending",
   "milestone.status.released": "Released",
   "milestone.count": "{count, plural, =0 {No milestones} one {# milestone} other {# milestones}}",
