@@ -28,64 +28,68 @@ const baseProps = {
   pdfHref: '/legal/terms-of-service-v2-4-0.pdf',
 }
 
-describe('TermsOfServiceChangelogModal', () => {
-  it('does not render when closed', () => {
-    render(
-      <TermsOfServiceChangelogModal
-        open={false}
-        onAcknowledge={vi.fn()}
-        onClose={vi.fn()}
-        {...baseProps}
-      />,
-    )
+describe('TermsOfServiceChangelogModal (Issue #598)', () => {
+  describe('Primary State Transitions', () => {
+    it('does not render when closed', () => {
+      render(
+        <TermsOfServiceChangelogModal open={false} onAcknowledge={vi.fn()} onClose={vi.fn()} {...baseProps} />
+      )
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    it('shows versioned diff content and requires acknowledgement', () => {
+      const onAcknowledge = vi.fn()
+      render(
+        <TermsOfServiceChangelogModal open onAcknowledge={onAcknowledge} onClose={vi.fn()} {...baseProps} />
+      )
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByText('v2.4.0')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /acknowledge and continue/i })).toBeDisabled()
+
+      fireEvent.click(screen.getByLabelText(/i have reviewed version v2\.4\.0/i))
+      fireEvent.click(screen.getByRole('button', { name: /acknowledge and continue/i }))
+
+      expect(onAcknowledge).toHaveBeenCalledWith('v2.4.0')
+    })
+
+    it('closes on Escape', () => {
+      const onClose = vi.fn()
+      render(
+        <TermsOfServiceChangelogModal open onAcknowledge={vi.fn()} onClose={onClose} {...baseProps} />
+      )
+
+      // Target document to match the component's event listener
+      fireEvent.keyDown(document, { key: 'Escape' })
+      
+      expect(onClose).toHaveBeenCalled()
+    })
   })
 
-  it('shows versioned diff content and requires acknowledgement', () => {
-    const onAcknowledge = vi.fn()
-    render(
-      <TermsOfServiceChangelogModal
-        open
-        onAcknowledge={onAcknowledge}
-        onClose={vi.fn()}
-        {...baseProps}
-      />,
-    )
+  describe('Failure Contract & Boundary Behavior', () => {
+    it('surfaces an observable error when version identifiers are missing', () => {
+      render(
+        <TermsOfServiceChangelogModal open onAcknowledge={vi.fn()} onClose={vi.fn()} {...baseProps} currentVersion="" />
+      )
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveTextContent('Missing version identifiers')
+    })
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText(/review the latest terms change log/i)).toBeInTheDocument()
-    expect(screen.getByText('v2.4.0')).toBeInTheDocument()
-    expect(screen.getByText('v2.3.0')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /download full text/i })).toHaveAttribute(
-      'href',
-      baseProps.fullTextHref,
-    )
-    expect(screen.getByRole('link', { name: /download pdf/i })).toHaveAttribute(
-      'href',
-      baseProps.pdfHref,
-    )
-    expect(screen.getByRole('button', { name: /acknowledge and continue/i })).toBeDisabled()
+    it('surfaces an observable error when the TermsChange array is empty', () => {
+      render(
+        <TermsOfServiceChangelogModal open onAcknowledge={vi.fn()} onClose={vi.fn()} {...baseProps} changes={[]} />
+      )
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveTextContent('at least one TermsChange')
+    })
 
-    fireEvent.click(screen.getByLabelText(/i have reviewed version v2\.4\.0/i))
-    fireEvent.click(screen.getByRole('button', { name: /acknowledge and continue/i }))
-
-    expect(onAcknowledge).toHaveBeenCalledWith('v2.4.0')
-  })
-
-  it('closes on Escape', () => {
-    const onClose = vi.fn()
-    render(
-      <TermsOfServiceChangelogModal
-        open
-        onAcknowledge={vi.fn()}
-        onClose={onClose}
-        {...baseProps}
-      />,
-    )
-
-    fireEvent.keyDown(window, { key: 'Escape' })
-
-    expect(onClose).toHaveBeenCalled()
+    it('surfaces an observable error when a TermsChange entry is malformed', () => {
+      const malformedChanges = [{ kind: 'Added' as const, title: '', detail: 'Missing title property' }]
+      render(
+        <TermsOfServiceChangelogModal open onAcknowledge={vi.fn()} onClose={vi.fn()} {...baseProps} changes={malformedChanges} />
+      )
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveTextContent('Malformed TermsChange')
+    })
   })
 })

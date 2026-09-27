@@ -72,7 +72,9 @@ export default function TermsOfServiceChangelogModal({
 
       if (e.key !== 'Tab') return
 
-      const focusable = Array.from(dialogRef.current!.querySelectorAll<HTMLElement>(FOCUSABLE))
+      const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) || [])
+      if (focusable.length === 0) return
+
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
 
@@ -99,6 +101,18 @@ export default function TermsOfServiceChangelogModal({
   }
 
   if (!open) return null
+
+  // Failure Contract: Enforce valid changelog data deterministically to prevent silent runtime crashes
+  if (!currentVersion || !previousVersion) {
+    return <div role="alert" className="modal-backdrop" style={{ padding: '2rem', color: 'var(--danger)', background: 'var(--surface-strong)' }}>Configuration Error: Missing version identifiers.</div>
+  }
+  if (!changes || changes.length === 0) {
+    return <div role="alert" className="modal-backdrop" style={{ padding: '2rem', color: 'var(--danger)', background: 'var(--surface-strong)' }}>Configuration Error: Changelog must contain at least one TermsChange.</div>
+  }
+  const hasMalformedChange = changes.some(c => !c.kind || !c.title || !c.detail)
+  if (hasMalformedChange) {
+    return <div role="alert" className="modal-backdrop" style={{ padding: '2rem', color: 'var(--danger)', background: 'var(--surface-strong)' }}>Configuration Error: Malformed TermsChange entry detected.</div>
+  }
 
   return (
     <div className="modal-backdrop" onClick={handleBackdropClick}>
