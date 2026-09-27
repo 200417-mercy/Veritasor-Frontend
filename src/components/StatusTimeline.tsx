@@ -95,6 +95,7 @@ function formatRelativeTime(isoTimestamp?: string): string {
   
   const now = new Date()
   const timestamp = new Date(isoTimestamp)
+  if (Number.isNaN(timestamp.getTime())) return 'Unknown time'
   const diffMs = now.getTime() - timestamp.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMs / 3600000)
@@ -113,8 +114,10 @@ function formatRelativeTime(isoTimestamp?: string): string {
 
 function formatAbsoluteTime(isoTimestamp?: string): string {
   if (!isoTimestamp) return ''
-  
-  return new Date(isoTimestamp).toLocaleString(undefined, {
+  const timestamp = new Date(isoTimestamp)
+  if (Number.isNaN(timestamp.getTime())) return 'Unknown time'
+
+  return timestamp.toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -128,12 +131,11 @@ function formatAbsoluteTime(isoTimestamp?: string): string {
 
 interface TimelineStepNodeProps {
   step: TimelineStep
-  index: number
   isLast: boolean
   showTimestamps: boolean
 }
 
-function TimelineStepNode({ step, index, isLast, showTimestamps }: TimelineStepNodeProps) {
+function TimelineStepNode({ step, isLast, showTimestamps }: TimelineStepNodeProps) {
   const [showTooltip, setShowTooltip] = useState(false)
   const meta = STEP_META[step.id]
   const statusMeta = STATUS_META[step.status]
@@ -400,7 +402,6 @@ export default function StatusTimeline({
           <TimelineStepNode
             key={step.id}
             step={step}
-            index={index}
             isLast={index === steps.length - 1}
             showTimestamps={showTimestamps}
           />

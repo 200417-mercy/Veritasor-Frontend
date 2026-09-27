@@ -13,7 +13,7 @@ describe('StatusTimeline', () => {
       id: 'submitted',
       label: 'Submitted',
       description: 'Attestation request submitted for processing',
-      timestamp: '2026-05-28T14:32:00Z',
+      timestamp: new Date(Date.now() - 60_000).toISOString(),
       status: 'completed',
     },
     {
@@ -166,6 +166,18 @@ describe('StatusTimeline', () => {
       const tooltip = screen.getByRole('tooltip')
       expect(tooltip).toBeInTheDocument()
     })
+
+    it('renders an explicit fallback for an invalid timestamp without crashing', () => {
+      const invalidTimestampSteps: TimelineStep[] = [
+        { ...mockSteps[0], timestamp: 'not-a-date' },
+      ]
+
+      render(<StatusTimeline steps={invalidTimestampSteps} />)
+
+      expect(screen.getByText('Unknown time')).toBeInTheDocument()
+      fireEvent.mouseEnter(screen.getByText('Unknown time'))
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Unknown time')
+    })
   })
 
   describe('Accessibility', () => {
@@ -299,8 +311,24 @@ describe('StatusTimeline', () => {
       render(<StatusTimeline steps={stepsWithAllStages} />)
       
       lifecycleStages.forEach(stage => {
-        expect(screen.getByText(new RegExp(stage, 'i'))).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: new RegExp(`^${stage}$`, 'i') })).toBeInTheDocument()
       })
+    })
+
+    it('updates the current-step announcement when lifecycle progress changes', () => {
+      const initialSteps = mockSteps.map(step => ({ ...step }))
+      const { rerender } = render(<StatusTimeline steps={initialSteps} />)
+
+      expect(screen.getByText('Queued').closest('li')).toHaveAttribute('aria-current', 'step')
+
+      const advancedSteps = initialSteps.map((step, index) => ({
+        ...step,
+        status: index < 2 ? 'completed' as TimelineStepStatus : index === 2 ? 'current' as TimelineStepStatus : 'pending' as TimelineStepStatus,
+      }))
+      rerender(<StatusTimeline steps={advancedSteps} />)
+
+      expect(screen.getByText('Queued').closest('li')).not.toHaveAttribute('aria-current')
+      expect(screen.getByText('Verifying').closest('li')).toHaveAttribute('aria-current', 'step')
     })
   })
 })
