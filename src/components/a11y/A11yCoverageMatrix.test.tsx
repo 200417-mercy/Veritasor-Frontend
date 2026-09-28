@@ -96,4 +96,58 @@ describe('A11yCoverageMatrix', () => {
       screen.getByText(new RegExp(`${pct}%`)),
     ).toBeInTheDocument()
   })
+
+  describe('Type Contracts and Data structures', () => {
+    it('validates WCAG_CRITERIA matches WcagCriterion contract', () => {
+      expect(WCAG_CRITERIA.length).toBeGreaterThan(0)
+      for (const criterion of WCAG_CRITERIA) {
+        expect(criterion).toHaveProperty('id')
+        expect(criterion).toHaveProperty('sc')
+        expect(criterion).toHaveProperty('label')
+        expect(criterion).toHaveProperty('level')
+        expect(['A', 'AA', 'AAA']).toContain(criterion.level)
+      }
+    })
+
+    it('validates COMPONENT_COVERAGE matches ComponentCoverage contract', () => {
+      expect(COMPONENT_COVERAGE.length).toBeGreaterThan(0)
+      for (const comp of COMPONENT_COVERAGE) {
+        expect(comp).toHaveProperty('component')
+        expect(comp).toHaveProperty('criteria')
+        for (const [key, method] of Object.entries(comp.criteria)) {
+          expect(typeof key).toBe('string')
+          expect(['automated', 'manual', 'partial', 'none']).toContain(method)
+        }
+      }
+    })
+  })
+
+  describe('Boundary and Invalid Inputs', () => {
+    it('handles empty components array without crashing', () => {
+      render(<A11yCoverageMatrix components={[]} />)
+      expect(screen.getByRole('heading', { level: 2 })).toBeInTheDocument()
+      expect(screen.getByText(/0\/0 criteria automated/i)).toBeInTheDocument()
+    })
+
+    it('handles components with empty criteria', () => {
+      const customData = [{ component: 'EmptyComp', criteria: {} }]
+      render(<A11yCoverageMatrix components={customData} />)
+      expect(screen.getByRole('rowheader', { name: 'EmptyComp' })).toBeInTheDocument()
+      expect(screen.getByText(/0\/0/)).toBeInTheDocument()
+    })
+
+    it('handles missing components prop (uses default)', () => {
+      render(<A11yCoverageMatrix components={undefined} />)
+      expect(screen.getByRole('rowheader', { name: 'Button' })).toBeInTheDocument()
+    })
+
+    it('handles unexpected criterion test method gracefully', () => {
+      const customData = [{ 
+        component: 'BadMethodComp', 
+        criteria: { '1.1.1': 'unknown-method' as any } 
+      }]
+      render(<A11yCoverageMatrix components={customData} />)
+      expect(screen.getByRole('rowheader', { name: 'BadMethodComp' })).toBeInTheDocument()
+    })
+  })
 })
