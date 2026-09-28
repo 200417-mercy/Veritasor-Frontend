@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { useSavedFilters } from './useSavedFilters'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useSavedFilters, type UseSavedFiltersReturn } from './useSavedFilters'
 import { savedFilterStorageKey } from '../utils/auditLogFilters'
 
 const ws = 'ws-test'
@@ -10,10 +10,28 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   window.localStorage.clear()
 })
 
 describe('useSavedFilters', () => {
+  it('exposes the documented return contract', () => {
+    const { result } = renderHook(() => useSavedFilters(ws))
+    const value: UseSavedFiltersReturn = result.current
+
+    expect(value).toMatchObject({
+      filters: [],
+      isHydrated: true,
+      isFull: false,
+      maxFilters: 50,
+      maxNameLength: 50,
+    })
+    expect(value.save).toEqual(expect.any(Function))
+    expect(value.rename).toEqual(expect.any(Function))
+    expect(value.remove).toEqual(expect.any(Function))
+    expect(value.getById).toEqual(expect.any(Function))
+  })
+
   it('starts empty when there is no entry in localStorage', () => {
     const { result } = renderHook(() => useSavedFilters(ws))
     expect(result.current.filters).toEqual([])
@@ -47,6 +65,36 @@ describe('useSavedFilters', () => {
     expect(result.current.filters).toEqual([
       { id: 'a', name: 'good', searchParams: '?q=x' },
     ])
+  })
+
+  it.each(['{invalid json', '{"filters":[]}'])(
+    'returns empty for invalid stored JSON: %s',
+    (raw) => {
+      window.localStorage.setItem(savedFilterStorageKey(ws), raw)
+      const { result } = renderHook(() => useSavedFilters(ws))
+      expect(result.current.filters).toEqual([])
+    },
+  )
+
+  it('keeps in-memory actions usable when localStorage reads and writes throw', () => {
+    vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+
+    const { result } = renderHook(() => useSavedFilters(ws))
+    let saveResult: ReturnType<UseSavedFiltersReturn['save']> | undefined
+    act(() => {
+      saveResult = result.current.save('Still usable', '?status=failed')
+    })
+
+    expect(saveResult).toEqual({ ok: true, name: 'Still usable' })
+    expect(result.current.filters[0]).toMatchObject({
+      name: 'Still usable',
+      searchParams: '?status=failed',
+    })
   })
 
   it('switches workspaces without leaking entries', () => {
