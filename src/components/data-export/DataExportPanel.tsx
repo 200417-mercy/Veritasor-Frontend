@@ -93,6 +93,30 @@ function expiryChipStyle(job: ExportJob, now: number): CSSProperties {
   return { color: 'var(--warning)', background: 'var(--warning-soft)', border: '1px solid rgba(251,191,36,0.35)' }
 }
 
+/**
+ * Retention chip for a tray row — the supporting copy for a `ready` / `expired`
+ * job (#260, docs/uiux/data-export-download-ux.md §3–4):
+ * "Expires in N days", falling back to hours under a day, and the muted
+ * "No longer available" copy once the file is no longer retained.
+ */
+function ExpiryChip({ job, now }: { job: ExportJob; now: number }) {
+  return (
+    <span
+      style={{
+        ...expiryChipStyle(job, now),
+        display: 'inline-block',
+        padding: '0.15rem 0.5rem',
+        borderRadius: 999,
+        fontSize: 'var(--density-text-sm)',
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {expiryCopy(job, now)}
+    </span>
+  )
+}
+
 let jobCounter = 0
 function nextJobId() {
   jobCounter += 1
@@ -277,20 +301,6 @@ function ConfirmDialog({
       </div>
     </div>
   )
-}
-
-const primaryButton: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minHeight: 'var(--density-touch-min)',
-  padding: '0.7rem 1.1rem',
-  borderRadius: 12,
-  border: '1px solid transparent',
-  fontWeight: 800,
-  cursor: 'pointer',
-  color: '#04111f',
-  background: 'linear-gradient(135deg, var(--accent), #60a5fa)',
 }
 
 function FormatCard({
@@ -978,12 +988,14 @@ export function CsvColumnSelectorModal({
   selectedColumns,
   dateFrom,
   dateTo,
-  onColumnsChange,
-  onDateFromChange,
-  onDateToChange,
   onClose,
   onApply,
 }: CsvColumnSelectorModalProps) {
+  // The panel also passes `onColumnsChange` / `onDateFromChange` / `onDateToChange`.
+  // They stay in the public props type for callers that already pass them, but this
+  // modal is a *draft* editor: nothing is published to the parent until
+  // "Apply & close" (docs/uiux/data-export-download-ux.md §1), so they are
+  // deliberately not read here.
   const dialogRef = useRef<HTMLDivElement>(null)
   const [localCols, setLocalCols] = useState<string[]>(selectedColumns)
   const [localFrom, setLocalFrom] = useState(dateFrom)
@@ -1047,7 +1059,6 @@ export function CsvColumnSelectorModal({
   return (
     /* Backdrop */
     <div
-      aria-hidden="true"
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 50,
@@ -1264,7 +1275,7 @@ export function CsvColumnSelectorModal({
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: '0.6rem' }}>
-            <button type="button" style={ghostButton} onClick={onClose}
+            <button type="button" onClick={onClose}
               style={{ ...ghostButton, padding: '0.55rem 1rem', fontSize: '0.88rem' }}
             >
               Cancel
