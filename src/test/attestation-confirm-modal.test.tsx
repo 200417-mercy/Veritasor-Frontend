@@ -536,3 +536,99 @@ describe('Dashboard', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 })
+
+// ─── AttestationConfirmModal: focus-trap forward-wrap branch ──────────────────
+
+describe('AttestationConfirmModal — focus trap forward-wrap branch (line 78)', () => {
+  // AttestationConfirmModal.tsx:78 is:
+  //   } else if (!e.shiftKey && document.activeElement === last) {
+  //     e.preventDefault()
+  //     first.focus()
+  //   }
+  // The existing suite asserts the resulting focus move but never observes
+  // e.preventDefault(), which is the branch's actual side effect and is
+  // invisible in jsdom unless asserted directly. These cases pin the branch,
+  // its !shiftKey guard, and the single-focusable (loading) boundary.
+
+  function openModal(options: { isLoading?: boolean } = {}) {
+    const onClose = vi.fn()
+    renderWithRouter(
+      <AttestationConfirmModal
+        open
+        onClose={onClose}
+        onConfirm={vi.fn()}
+        details={DEMO_DETAILS}
+        isLoading={options.isLoading}
+      />,
+    )
+    const dialog = screen.getByRole('dialog')
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>('button:not([disabled])'),
+    )
+    return {
+      dialog,
+      focusable,
+      first: focusable[0],
+      last: focusable[focusable.length - 1],
+      onClose,
+    }
+  }
+
+  function pressTab(shiftKey: boolean) {
+    const event = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      shiftKey,
+      bubbles: true,
+      cancelable: true,
+    })
+    document.dispatchEvent(event)
+    return event
+  }
+
+  it('wraps from the last control to the first AND prevents the default Tab', () => {
+    const { first, last } = openModal()
+    expect(first).toBeDefined()
+    expect(last).toBeDefined()
+    last!.focus()
+    expect(document.activeElement).toBe(last)
+
+    const event = pressTab(false)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(first)
+  })
+
+  it('does not hijack Shift+Tab from the last control (the !shiftKey guard)', () => {
+    const { last } = openModal()
+    last!.focus()
+
+    const event = pressTab(true)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(document.activeElement).toBe(last)
+  })
+
+  it('keeps focus inside when loading leaves a single focusable control (first === last)', () => {
+    const { focusable } = openModal({ isLoading: true })
+    expect(focusable).toHaveLength(1)
+    const only = focusable[0]!
+    only.focus()
+
+    const event = pressTab(false)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(only)
+  })
+
+  it('leaves the default Tab untouched from a non-boundary control', () => {
+    const { focusable } = openModal()
+    expect(focusable.length).toBeGreaterThanOrEqual(3)
+    const middle = focusable[1]!
+    middle.focus()
+
+    const event = pressTab(false)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(document.activeElement).toBe(middle)
+  })
+})
