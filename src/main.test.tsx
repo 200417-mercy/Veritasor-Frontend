@@ -42,4 +42,16 @@ describe('main entry point', () => {
     await expect(import('./main')).rejects.toThrow('Root element "#root" was not found.')
     expect(mocks.createRoot).not.toHaveBeenCalled()
   })
+
+  it('bootstraps successfully when the root is added after a missing-root failure', async () => {
+    await expect(import('./main')).rejects.toThrow('Root element "#root" was not found.')
+
+    document.body.innerHTML = '<div id="root"></div>'
+    vi.resetModules()
+    await import('./main')
+
+    expect(mocks.createRoot).toHaveBeenCalledOnce()
+    expect(mocks.createRoot).toHaveBeenCalledWith(document.getElementById('root'))
+    expect(mocks.createRoot.mock.results[0]?.value.render).toHaveBeenCalledOnce()
+  })
 })
