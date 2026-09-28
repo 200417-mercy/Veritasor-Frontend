@@ -138,7 +138,20 @@ function useTimelineFilters() {
     navigate({ search: next.toString() }, { replace: true })
   }
 
-  return { eventTypeFilter, actorFilter, setEventTypeFilter, setActorFilter }
+  /**
+   * Clear *both* filters in a single navigation. Doing this with two
+   * sequential `navigate` calls would lose one of the updates, because each
+   * setter rebuilds the query string from the `location.search` captured by
+   * the current render (the second call would still see the first filter).
+   */
+  function clearFilters() {
+    const next = new URLSearchParams(location.search)
+    next.delete('eventType')
+    next.delete('actor')
+    navigate({ search: next.toString() }, { replace: true })
+  }
+
+  return { eventTypeFilter, actorFilter, setEventTypeFilter, setActorFilter, clearFilters }
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +163,7 @@ interface FilterRowProps {
   actorFilter: Actor | 'all'
   onEventTypeChange: (v: EventType | 'all') => void
   onActorChange: (v: Actor | 'all') => void
+  onClear: () => void
   filteredCount: number
   totalCount: number
 }
@@ -159,6 +173,7 @@ function FilterRow({
   actorFilter,
   onEventTypeChange,
   onActorChange,
+  onClear,
   filteredCount,
   totalCount,
 }: FilterRowProps) {
@@ -226,10 +241,7 @@ function FilterRow({
           <button
             type="button"
             className="sf-clear-all"
-            onClick={() => {
-              onEventTypeChange('all')
-              onActorChange('all')
-            }}
+            onClick={onClear}
           >
             Clear
           </button>
@@ -512,7 +524,7 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
   const [message, setMessage] = useState('Ready to generate a new revenue attestation.')
   const [wasCanceled, setWasCanceled] = useState(false)
 
-  const { eventTypeFilter, actorFilter, setEventTypeFilter, setActorFilter } =
+  const { eventTypeFilter, actorFilter, setEventTypeFilter, setActorFilter, clearFilters } =
     useTimelineFilters()
 
   // Filter steps by active filters
@@ -684,6 +696,7 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
         actorFilter={actorFilter}
         onEventTypeChange={setEventTypeFilter}
         onActorChange={setActorFilter}
+        onClear={clearFilters}
         filteredCount={filteredSteps.length}
         totalCount={ATTESTATION_STEPS.length}
       />
