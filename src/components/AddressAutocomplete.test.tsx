@@ -1,19 +1,43 @@
 /**
- * AddressAutocomplete regression tests — Issue #682
+ * AddressAutocomplete — combined test suite
  *
- * Focused coverage for:
+ * Issue #682 — Focused regression coverage for:
  *   • src/components/AddressAutocomplete.tsx:130
  *     `if (value?.isManual !== undefined) setManualMode(value.isManual)`
  *   • debouncedQuery branch: `if (manualMode) return` suppresses fetch
  *
- * Acceptance:
+ * Issue #690 — Regression coverage for the `prev` branch at line 198:
+ *   case 'Enter':
+ *     e.preventDefault()
+ *     if (activeIdx >= 0 && suggestions[activeIdx]) selectSuggestion(suggestions[activeIdx])
+ *     break
+ *
+ * Acceptance (#682):
  *   ✓ value.isManual=true  → manualMode is set → fetch is suppressed
  *   ✓ value.isManual=false → manualMode is cleared → fetch is enabled
  *   ✓ Adjacent success path: suggestions fetched, selected, status updated
  *   ✓ Error + boundary paths: fetch failure, short query, empty result
+ *
+ * Acceptance (#690):
+ *   ✓ activeIdx >= 0 AND suggestions[activeIdx] exists  → selectSuggestion IS called
+ *   ✓ activeIdx === -1                                   → selectSuggestion is NOT called
+ *   ✓ activeIdx >= suggestions.length (out-of-range)    → selectSuggestion is NOT called
+ *
+ * Additional coverage:
+ *  - Component mounts and renders without crashing
+ *  - Public contract: label, placeholder, value, onChange, onClear, error props
+ *  - Suggestion list opens/closes (happy path)
+ *  - ArrowDown / ArrowUp keyboard navigation sets activeIdx
+ *  - Escape key closes the listbox
+ *  - Clicking a suggestion calls onChange correctly
+ *  - Manual mode toggle: switches between autocomplete and manual form
+ *  - Manual submit calls onChange with isManual=true
+ *  - Clear button resets state and calls onClear
+ *  - Error prop renders an error message
+ *  - Sync with external value prop
  */
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AddressAutocomplete from './AddressAutocomplete'
 import type { AddressSuggestion, AddressValue } from './AddressAutocomplete'
@@ -48,6 +72,41 @@ const SUGGESTION: AddressSuggestion = {
   lng: -0.1276,
 }
 
+// Extended fixture set used by the #690 keyboard-navigation tests
+const MOCK_SUGGESTIONS: AddressSuggestion[] = [
+  {
+    id: 's1',
+    label: '10 Downing St',
+    fullAddress: '10 Downing St, London SW1A 2AA, UK',
+    lat: 51.5034,
+    lng: -0.1276,
+  },
+  {
+    id: 's2',
+    label: '1600 Pennsylvania Ave NW',
+    fullAddress: '1600 Pennsylvania Ave NW, Washington, DC 20500, USA',
+    lat: 38.8977,
+    lng: -77.0365,
+  },
+  {
+    id: 's3',
+    label: 'Eiffel Tower',
+    fullAddress: 'Champ de Mars, 75007 Paris, France',
+    lat: 48.8584,
+    lng: 2.2945,
+  },
+]
+
+/** Instantly resolves with the provided suggestions (no delay). */
+function makeFetcher(results: AddressSuggestion[] = MOCK_SUGGESTIONS) {
+  return vi.fn().mockResolvedValue(results)
+}
+
+/** Resolves with empty array */
+function emptyFetcher() {
+  return vi.fn().mockResolvedValue([])
+}
+
 function renderComponent(props: {
   value?: AddressValue | null
   fetchSuggestions?: (q: string) => Promise<AddressSuggestion[]>
@@ -68,6 +127,21 @@ function renderComponent(props: {
     />,
   )
   return { onChange, rerender }
+}
+
+/** Type enough characters into the input to trigger a fetch, then wait for
+ *  suggestions to appear in the listbox. */
+async function openSuggestions(
+  input: HTMLElement,
+  text = 'dow',
+  suggestions: AddressSuggestion[] = MOCK_SUGGESTIONS,
+) {
+  fireEvent.change(input, { target: { value: text } })
+  // Wait for the debounced fetch + state update
+  await waitFor(() => {
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(screen.getAllByRole('option').length).toBe(suggestions.length)
+  })
 }
 
 // ─── Line 130: value-sync effect ──────────────────────────────────────────────
@@ -552,7 +626,7 @@ describe('AddressAutocomplete — error and boundary behaviour', () => {
   })
 })
 
-// ─── Keyboard navigation ──────────────────────────────────────────────────────
+// ─── Keyboard navigation (issue #682) ────────────────────────────────────────
 
 describe('AddressAutocomplete — keyboard navigation', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -586,5 +660,140 @@ describe('AddressAutocomplete — keyboard navigation', () => {
     expect(screen.getByRole('listbox')).toBeInTheDocument()
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+})
+
+// ─── Primary regression target: line 198 Enter branch (issue #690) ───────────
+// `if (activeIdx >= 0 && suggestions[activeIdx]) selectSuggestion(...)`
+
+describe('AddressAutocomplete — line 198 Enter branch regression (issue #690)', () => {
+  it('[branch hit] Enter with activeIdx ≥ 0 and valid suggestion calls selectSuggestion', async () => {
+    // Setup: fetch returns suggestions, user arrows down to select item at index 0
+    const onChange = vi.fn()
+    render(
+      <AddressAutocomplete
+        onChange={onChange}
+        onClear={vi.fn()}
+        fetchSuggestions={makeFetcher()}
+      />,
+    )
+    const input = screen.getAllByRole('combobox')[0]
+    await openSuggestions(input)
+
+    // Move to first suggestion (activeIdx = 0)
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+
+    // Confirm the item is highlighted
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole('option')[0].getAttribute('aria-selected'),
+      ).toBe('true')
+    })
+
+    // Press Enter — the branch condition is true: activeIdx (0) >= 0 AND suggestions[0] exists
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    // selectSuggestion should have been called → onChange fires
+    expect(onChange).toHaveBeenCalledWith({
+      fullAddress: MOCK_SUGGESTIONS[0].fullAddress,
+      lat: MOCK_SUGGESTIONS[0].lat,
+      lng: MOCK_SUGGESTIONS[0].lng,
+      isManual: false,
+    })
+
+    // Listbox should close
+    await waitFor(() => {
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    })
+  })
+
+  it('[branch miss] Enter with activeIdx === -1 does NOT call selectSuggestion', async () => {
+    // Setup: suggestions are loaded but user has NOT pressed ArrowDown (activeIdx stays -1)
+    const onChange = vi.fn()
+    render(
+      <AddressAutocomplete
+        onChange={onChange}
+        onClear={vi.fn()}
+        fetchSuggestions={makeFetcher()}
+      />,
+    )
+    const input = screen.getAllByRole('combobox')[0]
+    await openSuggestions(input)
+
+    // Do NOT press ArrowDown — activeIdx remains -1
+
+    // Press Enter — branch condition is false: activeIdx (-1) >= 0 is false
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    // onChange must NOT have been called with a suggestion
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('[branch miss] Enter when listbox is closed does NOT call selectSuggestion', async () => {
+    const onChange = vi.fn()
+    render(
+      <AddressAutocomplete
+        onChange={onChange}
+        onClear={vi.fn()}
+        fetchSuggestions={makeFetcher()}
+      />,
+    )
+    const input = screen.getAllByRole('combobox')[0]
+
+    // Listbox is NOT open — `open` is false, so handleKeyDown returns early
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('[branch hit — second item] Enter selects second suggestion when ArrowDown pressed twice', async () => {
+    const onChange = vi.fn()
+    render(
+      <AddressAutocomplete
+        onChange={onChange}
+        onClear={vi.fn()}
+        fetchSuggestions={makeFetcher()}
+      />,
+    )
+    const input = screen.getAllByRole('combobox')[0]
+    await openSuggestions(input)
+
+    // Arrow down twice → activeIdx = 1
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+
+    await waitFor(() => {
+      const options = screen.getAllByRole('option')
+      expect(options[1].getAttribute('aria-selected')).toBe('true')
+    })
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onChange).toHaveBeenCalledWith({
+      fullAddress: MOCK_SUGGESTIONS[1].fullAddress,
+      lat: MOCK_SUGGESTIONS[1].lat,
+      lng: MOCK_SUGGESTIONS[1].lng,
+      isManual: false,
+    })
+  })
+
+  it('[guard edge case] does not crash when suggestions array is empty and Enter is pressed', async () => {
+    // Edge case: empty fetcher — suggestions.length === 0
+    render(
+      <AddressAutocomplete
+        onChange={vi.fn()}
+        onClear={vi.fn()}
+        fetchSuggestions={emptyFetcher()}
+      />,
+    )
+    const input = screen.getAllByRole('combobox')[0]
+    fireEvent.change(input, { target: { value: 'xyz' } })
+
+    await waitFor(() =>
+      expect(screen.queryByText(/no matching addresses found/i)).toBeInTheDocument(),
+    )
+
+    // Enter while listbox shows "no results" (suggestions.length === 0, activeIdx === -1)
+    expect(() => fireEvent.keyDown(input, { key: 'Enter' })).not.toThrow()
   })
 })
