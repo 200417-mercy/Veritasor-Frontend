@@ -316,3 +316,129 @@ describe('WebhookCreateForm — edge cases', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 })
+
+// ════════════════════════════════════════════════════════════════════
+//  URL/TLS boundaries and form state transitions
+//
+//  Complements the suite above with the boundary behaviours that are
+//  easy to regress: the empty-submit TLS hint, whitespace-only inputs,
+//  first-change (pre-blur) validation, error clearing, raw-vs-normalised
+//  URL submission, multi-event ordering, and the isSubmitting default.
+// ════════════════════════════════════════════════════════════════════
+
+describe('WebhookCreateForm — URL/TLS boundaries', () => {
+  it('shows the TLS hint only after an empty submit attempt', () => {
+    renderForm()
+    expect(screen.queryByText(/all webhook endpoints must use https/i)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /create endpoint/i }))
+
+    expect(screen.getByText(/all webhook endpoints must use https/i)).toBeInTheDocument()
+  })
+
+  it('treats a whitespace-only URL as required, not as an invalid format', () => {
+    renderForm()
+    const urlInput = screen.getByLabelText(/endpoint url/i)
+    fireEvent.change(urlInput, { target: { value: '     ' } })
+    fireEvent.blur(urlInput)
+
+    expect(screen.getByText(/url is required/i)).toBeInTheDocument()
+    expect(screen.queryByText(/enter a valid url/i)).not.toBeInTheDocument()
+  })
+
+  it('validates on the first change without waiting for blur', () => {
+    renderForm()
+    const urlInput = screen.getByLabelText(/endpoint url/i)
+    fireEvent.change(urlInput, { target: { value: 'http://example.com/hook' } })
+
+    expect(screen.getByText(/http is not encrypted/i)).toBeInTheDocument()
+  })
+
+  it('clears the error and aria-invalid once the URL becomes valid', () => {
+    renderForm()
+    const urlInput = screen.getByLabelText(/endpoint url/i)
+
+    fireEvent.change(urlInput, { target: { value: 'http://example.com/hook' } })
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(urlInput).toHaveAttribute('aria-invalid', 'true')
+
+    fireEvent.change(urlInput, { target: { value: 'https://example.com/hook' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(urlInput).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  it('rejects a whitespace-padded invalid URL', () => {
+    renderForm()
+    const urlInput = screen.getByLabelText(/endpoint url/i)
+    fireEvent.change(urlInput, { target: { value: '  not-a-url  ' } })
+    fireEvent.blur(urlInput)
+
+    expect(screen.getByText(/enter a valid url/i)).toBeInTheDocument()
+  })
+
+  it('accepts an upper-case HTTPS scheme and submits the raw trimmed URL', () => {
+    const { onSubmit } = renderForm()
+    fireEvent.change(screen.getByLabelText(/endpoint url/i), {
+      target: { value: 'HTTPS://example.com/hook' },
+    })
+    fireEvent.click(screen.getByLabelText(/attestation completed/i))
+    fireEvent.click(screen.getByRole('button', { name: /create endpoint/i }))
+
+    // validateUrl normalises via `new URL` for the scheme check, but the
+    // submitted payload is the caller's own (trimmed) string.
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'HTTPS://example.com/hook' }),
+    )
+  })
+})
+
+describe('WebhookCreateForm — selection and submission state', () => {
+  it('passes every selected event through, preserving selection order', () => {
+    const { onSubmit } = renderForm()
+    fireEvent.change(screen.getByLabelText(/endpoint url/i), {
+      target: { value: 'https://example.com/hook' },
+    })
+    fireEvent.click(screen.getByLabelText(/attestation completed/i))
+    fireEvent.click(screen.getByLabelText(/attestation failed/i))
+    fireEvent.click(screen.getByRole('button', { name: /create endpoint/i }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ events: ['attestation.completed', 'attestation.failed'] }),
+    )
+  })
+
+  it('trims a whitespace-only description to the empty string', () => {
+    const { onSubmit } = renderForm()
+    fireEvent.change(screen.getByLabelText(/endpoint url/i), {
+      target: { value: 'https://example.com/hook' },
+    })
+    fireEvent.change(screen.getByLabelText(/webhook description/i), {
+      target: { value: '    ' },
+    })
+    fireEvent.click(screen.getByLabelText(/attestation completed/i))
+    fireEvent.click(screen.getByRole('button', { name: /create endpoint/i }))
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ description: '' }))
+  })
+
+  it('is enabled and not busy when isSubmitting is omitted', () => {
+    renderForm()
+    const submit = screen.getByRole('button', { name: /create endpoint/i })
+    expect(submit).not.toBeDisabled()
+    expect(submit).toHaveAttribute('aria-busy', 'false')
+  })
+
+  it('invokes onSubmit on every valid submit (no client-side re-entrancy guard)', () => {
+    const { onSubmit } = renderForm()
+    fireEvent.change(screen.getByLabelText(/endpoint url/i), {
+      target: { value: 'https://example.com/hook' },
+    })
+    fireEvent.click(screen.getByLabelText(/attestation completed/i))
+
+    const submit = screen.getByRole('button', { name: /create endpoint/i })
+    fireEvent.click(submit)
+    fireEvent.click(submit)
+
+    expect(onSubmit).toHaveBeenCalledTimes(2)
+  })
+})
