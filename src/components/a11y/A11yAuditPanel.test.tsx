@@ -86,6 +86,65 @@ function getProbedParams() {
 }
 
 // ---------------------------------------------------------------------------
+// A11yAuditPanelProps
+// ---------------------------------------------------------------------------
+
+describe('A11yAuditPanelProps', () => {
+  it('accepts a custom issues array', () => {
+    const customIssues: readonly A11yIssue[] = [
+      {
+        id: 'test-issue-1',
+        ruleId: 'custom-rule',
+        ruleName: 'Custom Rule',
+        wcag: 'WCAG 2.1',
+        selector: '#custom',
+        description: 'Custom description',
+        fixSuggestion: 'Fix it',
+        element: 'div',
+        url: 'https://example.com',
+        documentTitle: 'Test Doc',
+        detectedAt: '2023-01-01T00:00:00Z',
+        severity: 'critical',
+      },
+    ]
+    render(
+      <MemoryRouter>
+        <A11yAuditPanel issues={customIssues} />
+      </MemoryRouter>,
+    )
+
+    // Total count should be 1
+    const allChip = screen.getByRole('button', { name: /all severities/i })
+    expect(allChip.textContent).toContain('1')
+
+    // Critical chip should have 1
+    const criticalChip = screen.getByRole('button', { name: /critical severity/i })
+    expect(criticalChip.textContent).toContain('1')
+
+    // Result table should show the custom rule
+    expect(screen.getByText('Custom Rule')).toBeInTheDocument()
+  })
+
+  it('handles an empty issues array gracefully', () => {
+    render(
+      <MemoryRouter>
+        <A11yAuditPanel issues={[]} />
+      </MemoryRouter>,
+    )
+
+    // Total count should be 0
+    const allChip = screen.getByRole('button', { name: /all severities/i })
+    expect(allChip.textContent).toContain('0')
+
+    // Empty state should be visible
+    expect(screen.getByText(/no accessibility issues match the current filter/i)).toBeInTheDocument()
+    
+    // Live region status
+    expect(screen.getByText(/no accessibility issues recorded/i)).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Structure & ARIA
 // ---------------------------------------------------------------------------
 
