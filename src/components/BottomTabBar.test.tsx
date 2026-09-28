@@ -179,6 +179,18 @@ describe('BottomTabBar', () => {
       expect(screen.getByRole('link', { name: /attestations/i })).toHaveAttribute('href', '/attestations')
     })
   })
+  describe('error boundaries', () => {
+    it('throws an error when rendered outside of a router context', () => {
+      const consoleError = console.error;
+      console.error = () => {};
+
+      expect(() => render(<BottomTabBar />)).toThrowError(
+        /useHref\(\) may be used only in the context of a <Router> component/i
+      );
+
+      console.error = consoleError;
+    })
+  })
 })
 
 // ─── Layout integration ──────────────────────────────────────────
