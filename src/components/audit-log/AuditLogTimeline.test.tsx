@@ -1,6 +1,7 @@
+import { Component, type ReactNode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import AuditLogTimeline from './AuditLogTimeline'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import AuditLogTimeline, { type AuditLogEntry, type SeverityLevel } from './AuditLogTimeline'
 import { useDensityMode } from '../../hooks/useDensityMode'
 
 vi.mock('../../hooks/useDensityMode')
@@ -217,5 +218,219 @@ describe('AuditLogTimeline', () => {
       render(<AuditLogTimeline entries={twoSame} burstThreshold={5} />)
       expect(screen.getAllByRole('listitem')).toHaveLength(2)
     })
+  })
+})
+
+// ─── SeverityLevel coverage ──────────────────────────────────────────────────
+// `AuditLogTimeline.tsx` is the only module that declares `SeverityLevel`. The
+// suite above never passes a `severity`, so the chip contract, the absent-
+// severity path and the legend transition were all unverified.
+
+/** Minimal error boundary so the invalid-severity case can be asserted without
+ * React re-throwing the render error into the test runner. */
+class SeverityBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  render() {
+    if (this.state.error) {
+      return <span data-testid="severity-error">{this.state.error.message}</span>
+    }
+    return this.props.children
+  }
+}
+
+const severityEntries: AuditLogEntry[] = [
+  { id: 'sev-info', timestamp: '2026-07-28T08:12:00Z', event: 'Policy updated', severity: 'info' },
+  { id: 'sev-warn', timestamp: '2026-07-28T08:13:00Z', event: 'Rate limit nearing', severity: 'warn' },
+  { id: 'sev-error', timestamp: '2026-07-28T08:14:00Z', event: 'Attestation failed', severity: 'error' },
+  { id: 'sev-critical', timestamp: '2026-07-28T08:15:00Z', event: 'Signing key compromised', severity: 'critical' },
+]
+
+/** [severity, documented label, documented icon] — one row per union member. */
+const SEVERITY_LABELS: Array<[SeverityLevel, string, string]> = [
+  ['info', 'Info', '\u2139\ufe0f'],
+  ['warn', 'Warning', '\u26a0\ufe0f'],
+  ['error', 'Error', '\u274c'],
+  ['critical', 'Critical', '\ud83d\udea8'],
+]
+
+const severityChipName = /^Severity: /
+
+describe('SeverityLevel', () => {
+  beforeEach(() => {
+    setup('comfortable')
+  })
+
+  it('renders the documented label and icon for every union member', () => {
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    for (const [, label, icon] of SEVERITY_LABELS) {
+      const chip = screen.getByLabelText(`Severity: ${label}`)
+      expect(chip).toHaveTextContent(icon)
+      expect(chip).toHaveTextContent(label)
+    }
+    expect(screen.getAllByLabelText(severityChipName)).toHaveLength(SEVERITY_LABELS.length)
+  })
+
+  it('pairs each chip with the entry that declares that severity', () => {
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    const row = screen.getByText('Signing key compromised').closest('li')
+    expect(row).not.toBeNull()
+    expect(within(row as HTMLElement).getByLabelText('Severity: Critical')).toBeInTheDocument()
+    expect(within(row as HTMLElement).queryByLabelText('Severity: Info')).not.toBeInTheDocument()
+  })
+
+  it('renders no chip when the entry omits severity', () => {
+    const plain: AuditLogEntry[] = [
+      { id: 'plain', timestamp: '2026-07-28T08:12:00Z', event: 'API key rotated' },
+    ]
+    render(<AuditLogTimeline entries={plain} />)
+
+    expect(screen.getByText('API key rotated')).toBeInTheDocument()
+    expect(screen.queryByLabelText(severityChipName)).not.toBeInTheDocument()
+  })
+
+  it('chips only the entries that declare a severity in a mixed list', () => {
+    const mixed: AuditLogEntry[] = [
+      severityEntries[0],
+      { id: 'plain', timestamp: '2026-07-28T08:16:00Z', event: 'Viewer exported report' },
+      severityEntries[3],
+    ]
+    render(<AuditLogTimeline entries={mixed} />)
+
+    expect(screen.getAllByLabelText(severityChipName)).toHaveLength(2)
+    expect(screen.getByLabelText('Severity: Info')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Severity: Error')).not.toBeInTheDocument()
+  })
+
+  it('rejects an out-of-contract severity rather than rendering an unstyled chip', () => {
+    const invalid: AuditLogEntry[] = [
+      {
+        id: 'invalid',
+        timestamp: '2026-07-28T08:12:00Z',
+        event: 'Unknown severity',
+        // Simulates an untyped payload (e.g. a raw API response) bypassing the union.
+        severity: 'fatal' as unknown as SeverityLevel,
+      },
+    ]
+
+    // `SEVERITY_META` is an exhaustive record over the closed union, so an
+    // unlisted severity must fail loudly during render instead of degrading
+    // silently. React logs the caught error; silence that expected noise.
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      render(
+        <SeverityBoundary>
+          <AuditLogTimeline entries={invalid} />
+        </SeverityBoundary>,
+      )
+    } finally {
+      consoleError.mockRestore()
+    }
+
+    expect(screen.getByTestId('severity-error').textContent).toMatch(/label/)
+  })
+
+  it('renders chips inside compact-density rows as well', () => {
+    setup('compact')
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    const chip = screen.getByLabelText('Severity: Critical')
+    expect(chip).toBeInTheDocument()
+    expect(chip.closest('button')).not.toBeNull()
+  })
+})
+
+describe('SeverityLegend', () => {
+  beforeEach(() => {
+    setup('compact')
+  })
+
+  it('starts collapsed and reveals every severity label when opened', () => {
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    const toggle = screen.getByLabelText('Toggle severity legend')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const legend = screen.getByRole('tooltip', { name: 'Severity legend' })
+    for (const [, label] of SEVERITY_LABELS) {
+      expect(legend).toHaveTextContent(label)
+    }
+  })
+
+  it('collapses again on the second toggle', () => {
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    const toggle = screen.getByLabelText('Toggle severity legend')
+    fireEvent.click(toggle)
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('is rendered in comfortable density too', () => {
+    setup('comfortable')
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    expect(screen.getByLabelText('Toggle severity legend')).toBeInTheDocument()
+  })
+})
+
+describe('detail drawer state transition', () => {
+  beforeEach(() => {
+    setup('compact')
+  })
+
+  it('opens with the base entry when no detail loader is supplied', () => {
+    render(<AuditLogTimeline entries={severityEntries} />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText(/View details for Policy updated/))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Policy updated')
+  })
+
+  it('awaits the detail loader and renders the enriched entry', async () => {
+    const onFetchDetail = vi.fn().mockResolvedValue({
+      id: 'sev-info',
+      timestamp: '2026-07-28T08:12:00Z',
+      event: 'Policy updated (enriched)',
+      actor: 'ops@veritasor.io',
+      severity: 'info',
+    })
+    render(<AuditLogTimeline entries={severityEntries} onFetchDetail={onFetchDetail} />)
+
+    fireEvent.click(screen.getByLabelText(/View details for Policy updated/))
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog')).toHaveTextContent('Policy updated (enriched)'),
+    )
+    expect(onFetchDetail).toHaveBeenCalledWith('sev-info')
+    expect(screen.getByRole('dialog')).toHaveTextContent('ops@veritasor.io')
+  })
+
+  it('closes on Escape and restores focus to the triggering row', () => {
+    render(<AuditLogTimeline entries={severityEntries} />)
+    const trigger = screen.getByLabelText(/View details for Policy updated/)
+
+    fireEvent.click(trigger)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(trigger)
   })
 })
