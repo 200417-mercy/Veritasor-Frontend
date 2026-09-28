@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { IntlProvider } from 'react-intl'
 import enMessages from '../../i18n/messages/en.json'
-import SaveFilterModal from './SaveFilterModal'
+import SaveFilterModal, { SaveFilterModalProps } from './SaveFilterModal'
 
 function wrap(node: React.ReactNode) {
   // LocaleProvider relies on Vite's import.meta.glob to load messages;
@@ -22,7 +22,7 @@ function getDialog() {
 
 describe('SaveFilterModal', () => {
   function renderModal(
-    props: Partial<React.ComponentProps<typeof SaveFilterModal>> = {},
+    props: Partial<SaveFilterModalProps> = {},
   ) {
     const onSave = vi.fn()
     const onClose = vi.fn()
