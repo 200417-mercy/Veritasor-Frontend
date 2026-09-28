@@ -101,3 +101,116 @@ describe('SubmitButton', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('SubmitButton label announcements', () => {
+  it('announces the label through a polite live region', () => {
+    render(<SubmitButton idleLabel="Sign in" busyLabel="Signing in…" />)
+
+    const label = document.querySelector('.auth-submit-label')
+    expect(label).toBeInTheDocument()
+    expect(label).toHaveAttribute('aria-live', 'polite')
+    expect(label).toHaveTextContent('Sign in')
+  })
+
+  it('swaps the announced label text when busy', () => {
+    render(<SubmitButton idleLabel="Sign in" busyLabel="Signing in…" busy />)
+
+    expect(document.querySelector('.auth-submit-label')).toHaveTextContent('Signing in…')
+  })
+
+  it('accepts non-string label nodes', () => {
+    render(
+      <SubmitButton
+        idleLabel={<span data-testid="idle-node">Save now</span>}
+        busyLabel={<span data-testid="busy-node">Saving…</span>}
+      />,
+    )
+
+    expect(screen.getByTestId('idle-node')).toBeInTheDocument()
+    expect(screen.queryByTestId('busy-node')).not.toBeInTheDocument()
+  })
+})
+
+describe('SubmitButton prop forwarding', () => {
+  it('honours an explicit type override', () => {
+    const onSubmit = vi.fn((e: FormEvent) => e.preventDefault())
+
+    render(
+      <form onSubmit={onSubmit}>
+        <SubmitButton
+          type="button"
+          idleLabel="Cancel"
+          busyLabel="Cancelling…"
+          onClick={() => undefined}
+        />
+      </form>,
+    )
+
+    expect(screen.getByRole('button', { name: /cancel/i })).toHaveAttribute('type', 'button')
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('forwards arbitrary button attributes and handlers', () => {
+    const onClick = vi.fn()
+
+    render(
+      <SubmitButton
+        idleLabel="Sign in"
+        busyLabel="Signing in…"
+        name="intent"
+        value="login"
+        data-testid="submit"
+        onClick={onClick}
+      />,
+    )
+
+    const button = screen.getByTestId('submit')
+    expect(button).toHaveAttribute('name', 'intent')
+    expect(button).toHaveAttribute('value', 'login')
+
+    fireEvent.click(button)
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a custom className alongside the auth classes while busy', () => {
+    render(
+      <SubmitButton idleLabel="Sign in" busyLabel="Signing in…" className="extra-submit" busy />,
+    )
+
+    expect(screen.getByRole('button', { name: /signing in/i })).toHaveClass(
+      'auth-button',
+      'auth-button-primary',
+      'auth-submit',
+      'extra-submit',
+    )
+  })
+
+  it('disables the button when busy is set even if disabled is explicitly false', () => {
+    render(<SubmitButton idleLabel="Sign in" busyLabel="Signing in…" busy disabled={false} />)
+
+    const button = screen.getByRole('button', { name: /signing in/i })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('omits aria-busy entirely while idle, including when disabled', () => {
+    const { unmount } = render(
+      <SubmitButton idleLabel="Sign in" busyLabel="Signing in…" disabled />,
+    )
+    expect(screen.getByRole('button', { name: /sign in/i })).not.toHaveAttribute('aria-busy')
+
+    unmount()
+    render(<SubmitButton idleLabel="Sign in" busyLabel="Signing in…" />)
+    expect(screen.getByRole('button', { name: /sign in/i })).not.toHaveAttribute('aria-busy')
+  })
+
+  it('renders exactly one label and at most one decorative spinner', () => {
+    render(<SubmitButton idleLabel="Sign in" busyLabel="Signing in…" busy />)
+
+    expect(document.querySelectorAll('.auth-submit-label')).toHaveLength(1)
+    const spinner = document.querySelector('.auth-submit-spinner')
+    expect(spinner).toHaveAttribute('viewBox', '0 0 24 24')
+    expect(spinner?.querySelectorAll('circle, path')).toHaveLength(2)
+  })
+})
