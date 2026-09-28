@@ -130,7 +130,13 @@ export default function RevokeKeyDialog({ open, keyItem, dependentUsages, isLoad
             <span aria-hidden="true" style={{ color: 'var(--danger)' }}>⚠</span>
             Revoke API key?
           </h2>
-          <button type="button" className="modal-close" aria-label="Close dialog" onClick={onClose}>
+          <button
+            type="button"
+            className="modal-close"
+            aria-label="Close dialog"
+            onClick={onClose}
+            disabled={isLoading}
+          >
             <span aria-hidden="true">✕</span>
           </button>
         </div>
