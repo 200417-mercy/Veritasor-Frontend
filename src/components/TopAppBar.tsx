@@ -142,7 +142,7 @@ export default function TopAppBar({
       const t = window.setTimeout(() => workspaceSearchRef.current?.focus(), 30);
       return () => window.clearTimeout(t);
     }
-  }, [openWorkspaceSwitcherInSearchMode, onWorkspaceSwitcherOpenChange, workspaceSearch]);
+  }, [openWorkspaceSwitcherInSearchMode, onWorkspaceSwitcherOpenChange]);
 
   useEffect(() => {
     function handleOutsideClick(e: MouseEvent) {
