@@ -16,7 +16,6 @@ import { describe, expect, it, afterEach } from 'vitest'
 import { ToastProvider } from '../components/ToastContext'
 import RevenueSources from '../pages/RevenueSources'
 import { LocaleProvider } from '../i18n/provider'
-import { ToastProvider } from '../components/ToastContext'
 
 afterEach(() => cleanup())
 
