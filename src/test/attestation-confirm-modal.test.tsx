@@ -27,6 +27,16 @@ describe('AttestationConfirmModal', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
+    it('does not run backdrop behavior while closed', () => {
+      const onClose = vi.fn()
+      const { container } = renderWithRouter(
+        <AttestationConfirmModal open={false} onClose={onClose} onConfirm={vi.fn()} />,
+      )
+
+      expect(container.querySelector('.modal-backdrop')).toBeNull()
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
     it('does not render the title when closed', () => {
       renderWithRouter(
         <AttestationConfirmModal open={false} onClose={vi.fn()} onConfirm={vi.fn()} />,
