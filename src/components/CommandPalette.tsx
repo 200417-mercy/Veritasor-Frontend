@@ -502,8 +502,8 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
                         >{pinned.includes(cmd.id) ? '📌' : '📌'}</button>
                         {cmd.shortcut && (
                           <div className="cmd-item-shortcut" aria-hidden="true">
-                            {cmd.shortcut.map((key) => (
-                              <kbd key={key}>{key}</kbd>
+                            {cmd.shortcut.map((key, idx) => (
+                              <kbd key={`${key}-${idx}`}>{key}</kbd>
                             ))}
                           </div>
                         )}
