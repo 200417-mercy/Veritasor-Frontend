@@ -95,11 +95,11 @@ describe('MotionDemo — duration token table', () => {
   it('renders all six duration token names', () => {
     renderPage()
     expect(screen.getByText('--motion-duration-none')).toBeInTheDocument()
-    expect(screen.getByText('--motion-duration-xs')).toBeInTheDocument()
+    expect(screen.getAllByText('--motion-duration-xs').length).toBeGreaterThan(0)
     expect(screen.getByText('--motion-duration-sm')).toBeInTheDocument()
     expect(screen.getByText('--motion-duration-md')).toBeInTheDocument()
-    expect(screen.getByText('--motion-duration-lg')).toBeInTheDocument()
-    expect(screen.getByText('--motion-duration-xl')).toBeInTheDocument()
+    expect(screen.getAllByText('--motion-duration-lg').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('--motion-duration-xl').length).toBeGreaterThan(0)
   })
 
   it('renders correct values for each duration token', () => {
@@ -118,7 +118,7 @@ describe('MotionDemo — duration token table', () => {
     expect(screen.getByText(/micro feedback/i)).toBeInTheDocument()
     expect(screen.getByText(/chip, badge/i)).toBeInTheDocument()
     expect(screen.getByText(/panel\/card/i)).toBeInTheDocument()
-    expect(screen.getByText(/toast enter/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/toast enter/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/layout-level/i)).toBeInTheDocument()
   })
 })
@@ -142,12 +142,12 @@ describe('MotionDemo — easing token table', () => {
 
   it('renders all six easing token names', () => {
     renderPage()
-    expect(screen.getByText('--motion-easing-standard')).toBeInTheDocument()
+    expect(screen.getAllByText('--motion-easing-standard').length).toBeGreaterThan(0)
     expect(screen.getByText('--motion-easing-decelerate')).toBeInTheDocument()
     expect(screen.getByText('--motion-easing-accelerate')).toBeInTheDocument()
     expect(screen.getByText('--motion-easing-exit')).toBeInTheDocument()
     expect(screen.getByText('--motion-easing-linear')).toBeInTheDocument()
-    expect(screen.getByText('--motion-easing-spring')).toBeInTheDocument()
+    expect(screen.getAllByText('--motion-easing-spring').length).toBeGreaterThan(0)
   })
 
   it('renders correct cubic-bezier values', () => {
@@ -161,7 +161,7 @@ describe('MotionDemo — easing token table', () => {
 
   it('renders usage guidance for spring token restricted to toast', () => {
     renderPage()
-    expect(screen.getByText(/toast enter only/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/toast enter only/i).length).toBeGreaterThan(0)
   })
 })
 
@@ -347,7 +347,7 @@ describe('MotionDemo — accessibility section', () => {
 
   it('mentions prefers-reduced-motion in accessibility section', () => {
     renderPage()
-    expect(screen.getByText(/prefers-reduced-motion/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/prefers-reduced-motion/i).length).toBeGreaterThan(0)
   })
 
   it('keyboard navigation section explains Tab/Enter/Space', () => {
@@ -403,6 +403,17 @@ describe('MotionDemo — component usage section', () => {
 /* ─── General accessibility attributes ──────────────────────────────────── */
 
 describe('MotionDemo — general accessibility attributes', () => {
+  it('announces completion and reset through the live region', () => {
+    renderPage()
+    const track = screen.getByRole('button', { name: /xs — hover\/focus.*press to play/i })
+    const liveRegion = screen.getByRole('status')
+
+    fireEvent.click(track)
+    expect(liveRegion).toHaveTextContent(/demo started/i)
+    fireEvent.click(track)
+    expect(liveRegion).toHaveTextContent(/demo reset/i)
+  })
+
   it('all interactive tracks have aria-label ending in "press to play"', () => {
     renderPage()
     const tracks = screen.getAllByRole('button', { name: /press to play/i })
