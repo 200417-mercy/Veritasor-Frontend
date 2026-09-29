@@ -148,6 +148,16 @@ describe('ConsentPreferences', () => {
   })
 
   describe('Save functionality', () => {
+    it('should set aria-busy on save button during saving', () => {
+      renderComponent()
+      const analyticsToggle = screen.getByLabelText('Analytics')
+      const saveButton = screen.getByRole('button', { name: /Save preferences/i })
+
+      fireEvent.click(analyticsToggle)
+      fireEvent.click(saveButton)
+
+      expect(saveButton).toHaveAttribute('aria-busy', 'true')
+    })
     it('should call savePreferences with updated consent when save is clicked', () => {
       renderComponent()
       const analyticsToggle = screen.getByLabelText('Analytics')
@@ -352,3 +362,4 @@ describe('ConsentPreferences', () => {
     })
   })
 })
+// Added for issue coverage
