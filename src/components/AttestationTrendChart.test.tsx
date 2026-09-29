@@ -35,6 +35,18 @@ describe('AttestationTrendChart', () => {
     render(<AttestationTrendChart data={[]} />);
     expect(screen.getByText('No attestation data available for this period.')).toBeInTheDocument();
   });
+
+  it('omits non-positive status segments while retaining the bar outcome', () => {
+    render(
+      <AttestationTrendChart
+        data={[{ date: '2025-03-04', verified: 0, pending: 0, failed: 0, total: 0 }]}
+      />,
+    );
+
+    const bar = screen.getByRole('button', { name: /2025-03-04: verified 0/i });
+    expect(bar.querySelectorAll('rect')).toHaveLength(0);
+    expect(screen.getByRole('status')).toHaveTextContent('Hover or focus a bar for details.');
+  });
 });
 
 describe('aggregateAttestationTrend', () => {
