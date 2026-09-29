@@ -316,6 +316,108 @@ describe('AttestationConfirmModal', () => {
     })
   })
 
+  describe('handleBackdropClick branch (src/components/AttestationConfirmModal.tsx:89)', () => {
+    function ControlledModalWrapper({ initialLoading = false }: { initialLoading?: boolean }) {
+      const [open, setOpen] = useState(true)
+      const [loading, setLoading] = useState(initialLoading)
+
+      return (
+        <div>
+          <button type="button" onClick={() => setLoading(!loading)}>
+            Toggle Loading
+          </button>
+          <AttestationConfirmModal
+            open={open}
+            onClose={() => setOpen(false)}
+            onConfirm={vi.fn()}
+            isLoading={loading}
+            details={DEMO_DETAILS}
+          />
+        </div>
+      )
+    }
+
+    it('does not dismiss modal or trigger onClose when backdrop is clicked while isLoading is true', () => {
+      const onClose = vi.fn()
+      const { container } = renderWithRouter(
+        <AttestationConfirmModal open onClose={onClose} onConfirm={vi.fn()} isLoading={true} />,
+      )
+
+      const backdrop = container.querySelector('.modal-backdrop')
+      expect(backdrop).toBeInTheDocument()
+
+      fireEvent.click(backdrop!)
+
+      // Assert non-invocation of callback (failure to dismiss branch)
+      expect(onClose).not.toHaveBeenCalled()
+      // Assert visible outcome: dialog remains visible and in loading state
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /attesting/i })).toBeDisabled()
+      expect(screen.getByRole('button', { name: /^cancel$/i })).toBeDisabled()
+    })
+
+    it('preserves visible modal state in controlled consumer when backdrop is clicked during loading', () => {
+      const { container } = renderWithRouter(<ControlledModalWrapper initialLoading={true} />)
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      const backdrop = container.querySelector('.modal-backdrop')
+      fireEvent.click(backdrop!)
+
+      // Modal must remain open and visible in DOM
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    it('triggers onClose and visibly dismisses modal when backdrop is clicked and isLoading is false', () => {
+      const onClose = vi.fn()
+      const { container } = renderWithRouter(
+        <AttestationConfirmModal open onClose={onClose} onConfirm={vi.fn()} isLoading={false} />,
+      )
+
+      const backdrop = container.querySelector('.modal-backdrop')
+      fireEvent.click(backdrop!)
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('visibly unmounts modal in controlled consumer when backdrop is clicked and not loading', () => {
+      const { container } = renderWithRouter(<ControlledModalWrapper initialLoading={false} />)
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      const backdrop = container.querySelector('.modal-backdrop')
+      fireEvent.click(backdrop!)
+
+      // Visible outcome: dialog is removed from the DOM
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('handles dynamic isLoading state transitions on backdrop click deterministically', () => {
+      const { container } = renderWithRouter(<ControlledModalWrapper initialLoading={true} />)
+
+      const backdrop = container.querySelector('.modal-backdrop')
+      // While loading, backdrop click should not close modal
+      fireEvent.click(backdrop!)
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+      // Toggle loading to false
+      fireEvent.click(screen.getByRole('button', { name: /toggle loading/i }))
+
+      // Now backdrop click should dismiss modal
+      fireEvent.click(backdrop!)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('does not trigger handleBackdropClick when clicking inside modal dialog content', () => {
+      const onClose = vi.fn()
+      renderWithRouter(
+        <AttestationConfirmModal open onClose={onClose} onConfirm={vi.fn()} isLoading={false} />,
+      )
+
+      fireEvent.click(screen.getByRole('dialog'))
+      expect(onClose).not.toHaveBeenCalled()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+  })
+
   describe('keyboard interactions', () => {
     it('Escape key calls onClose', () => {
       const onClose = vi.fn()
@@ -544,6 +646,19 @@ describe('Dashboard', () => {
 
     fireEvent.click(trigger)
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('closes modal when backdrop is clicked', () => {
+    const { container } = renderWithRouter(<Dashboard />)
+    const trigger = screen.getByRole('button', { name: /trigger monthly revenue report/i })
+
+    fireEvent.click(trigger)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    const backdrop = container.querySelector('.modal-backdrop')
+    expect(backdrop).toBeInTheDocument()
+    fireEvent.click(backdrop!)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
 
