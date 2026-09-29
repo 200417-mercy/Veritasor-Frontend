@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi, afterEach } from 'vitest'
 import {
   EMPTY_FILTER_STATE,
   MAX_FILTERS_PER_WORKSPACE,
@@ -8,6 +8,7 @@ import {
   isValidIsoDate,
   makeSavedFilterId,
   parseFilterUrl,
+  readFilterStateFromLocation,
   savedFilterStorageKey,
   serializeFilterState,
   validateFilterName,
@@ -90,6 +91,21 @@ describe('auditLogFilters', () => {
           dateFrom: 'not-a-date',
           dateTo: '2026-13-99',
         }),
+      ).toBe('')
+    })
+
+    it('dedupes and sorts chips on serialize', () => {
+      expect(
+        serializeFilterState({
+          ...EMPTY_FILTER_STATE,
+          activeChips: ['b', 'a', 'b', 'a'],
+        }),
+      ).toBe('?status=a,b')
+    })
+
+    it('omits whitespace-only query', () => {
+      expect(
+        serializeFilterState({ ...EMPTY_FILTER_STATE, query: '   ' }),
       ).toBe('')
     })
   })
@@ -228,6 +244,11 @@ describe('auditLogFilters', () => {
         ok: false,
         reason: 'invalid_chars',
       })
+      // DEL character (0x7f) is also in the banned range
+      expect(validateFilterName('foo\u007fbar', [])).toEqual({
+        ok: false,
+        reason: 'invalid_chars',
+      })
     })
 
     it('accepts names at the limit', () => {
@@ -287,12 +308,63 @@ describe('auditLogFilters', () => {
         ),
       ).toBeUndefined()
     })
+
+    it('returns the correct filter from a list of several', () => {
+      const saved = [
+        { id: '1', name: 'All verified', searchParams: '?status=verified', createdAt: '', updatedAt: '' },
+        { id: '2', name: 'Failed only',  searchParams: '?status=failed',   createdAt: '', updatedAt: '' },
+        { id: '3', name: 'Date range',   searchParams: '?from=2026-01-01&to=2026-01-31', createdAt: '', updatedAt: '' },
+      ]
+      expect(
+        findMatchingSavedFilter(saved, { ...EMPTY_FILTER_STATE, activeChips: ['failed'] }),
+      ).toBe(saved[1])
+      expect(
+        findMatchingSavedFilter(saved, { ...EMPTY_FILTER_STATE, dateFrom: '2026-01-01', dateTo: '2026-01-31' }),
+      ).toBe(saved[2])
+    })
+
+    it('returns undefined when state serializes to empty (no active filter)', () => {
+      const saved = [
+        { id: '1', name: 'Something', searchParams: '?status=verified', createdAt: '', updatedAt: '' },
+      ]
+      expect(findMatchingSavedFilter(saved, { ...EMPTY_FILTER_STATE })).toBeUndefined()
+    })
   })
 
   describe('constants', () => {
     it('exposes a sane limit', () => {
       expect(MAX_FILTERS_PER_WORKSPACE).toBeGreaterThan(0)
       expect(MAX_FILTER_NAME_LENGTH).toBeGreaterThan(0)
+    })
+  })
+
+  describe('readFilterStateFromLocation', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('returns EMPTY_FILTER_STATE when window is undefined (SSR)', () => {
+      vi.stubGlobal('window', undefined)
+      expect(readFilterStateFromLocation()).toEqual({ ...EMPTY_FILTER_STATE })
+    })
+
+    it('parses the current window.location.href', () => {
+      vi.stubGlobal('window', {
+        location: { href: 'https://app.example.com/audit?q=test&status=failed' },
+      })
+      expect(readFilterStateFromLocation()).toEqual({
+        query: 'test',
+        activeChips: ['failed'],
+        dateFrom: '',
+        dateTo: '',
+      })
+    })
+
+    it('returns empty state when the URL has no recognised params', () => {
+      vi.stubGlobal('window', {
+        location: { href: 'https://app.example.com/audit' },
+      })
+      expect(readFilterStateFromLocation()).toEqual({ ...EMPTY_FILTER_STATE })
     })
   })
 })
