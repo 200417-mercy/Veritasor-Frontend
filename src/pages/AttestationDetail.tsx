@@ -4,7 +4,6 @@ import { useParams, Link } from 'react-router-dom'
 import Breadcrumb from '../components/Breadcrumb'
 import StatusTimeline, { 
   TimelineStep, 
-  AttestationLifecycleStage,
   TimelineStepStatus 
 } from '../components/StatusTimeline'
 import './AttestationCertificate.print.css'
