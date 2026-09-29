@@ -29,7 +29,10 @@ export default function IntegrationCard({
   onDisconnect,
 }: IntegrationCardProps) {
   const { id, name, description, icon, status, statusText } = integration
-  const colors = chipColors[status]
+  // Fall back to the neutral palette for statuses outside the documented union
+  // so an unexpected API payload degrades gracefully instead of crashing the
+  // whole integrations view on `colors.bg`.
+  const colors = chipColors[status] ?? chipColors.available
 
   const handleConfigure = useCallback(() => onConfigure?.(id), [id, onConfigure])
   const handleConnect = useCallback(() => onConnect?.(id), [id, onConnect])
