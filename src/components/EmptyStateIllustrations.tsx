@@ -262,6 +262,10 @@ interface EmptyStateIllustrationProps {
 }
 
 export function EmptyStateIllustration({ type }: EmptyStateIllustrationProps) {
+  if (!Object.prototype.hasOwnProperty.call(ILLUSTRATION_META, type)) {
+    throw new RangeError(`Unknown empty-state illustration type: ${String(type)}`)
+  }
+
   const meta = ILLUSTRATION_META[type]
 
   const SvgMap: Record<IllustrationType, () => JSX.Element> = {
