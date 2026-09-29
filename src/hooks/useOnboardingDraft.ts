@@ -37,11 +37,6 @@ export type BankDetails = {
   currency: string
 }
 
-export type SelfieCapture = {
-  captured: boolean
-  fileName: string
-}
-
 export type OnboardingDraft = {
   step: number
   business: BusinessDetails
@@ -96,8 +91,12 @@ export function useOnboardingDraft() {
 
   // Persist on mount if draft already existed
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) setSavedAt(new Date())
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) setSavedAt(new Date())
+    } catch {
+      // Storage unavailable (private mode / blocked): keep the in-memory draft.
+    }
   }, [])
 
   return { draft, setDraft, clearDraft, savedAt }
