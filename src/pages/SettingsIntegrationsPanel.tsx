@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import IntegrationCard from '../components/integrations/IntegrationCard'
 import { AVAILABLE_INTEGRATIONS } from '../components/integrations/integrations-data'
 import type { Integration } from '../components/integrations/IntegrationCard'
@@ -14,6 +15,8 @@ const FILTER_TABS: { id: FilterMode; label: string }[] = [
 export default function SettingsIntegrationsPanel() {
   const [integrations, setIntegrations] = useState<Integration[]>(AVAILABLE_INTEGRATIONS)
   const [filter, setFilter] = useState<FilterMode>('all')
+  const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   const filtered =
     filter === 'all' ? integrations : integrations.filter((i) => i.status === filter || (filter === 'available' && i.status === 'error'))
@@ -110,6 +113,13 @@ export default function SettingsIntegrationsPanel() {
         })}
       </div>
 
+      {/* Error Boundary State */}
+      {error && (
+        <div role="alert" style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '4px' }}>
+          {error}
+        </div>
+      )}
+
       {/* Card grid */}
       <div
         role="tabpanel"
@@ -132,7 +142,13 @@ export default function SettingsIntegrationsPanel() {
               onConnect={handleConnect}
               onDisconnect={handleDisconnect}
               onConfigure={() => {
-                /* stub: navigate to config page */
+                // Failure Contract: Set deterministic UI error instead of throwing unhandled exception
+                if (!integration.id) {
+                  setError('Integration configuration requires a valid integration ID.')
+                  return
+                }
+                setError(null)
+                navigate(`/settings/integrations/${integration.id}`)
               }}
             />
           ))
