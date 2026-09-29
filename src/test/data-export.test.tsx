@@ -2,6 +2,17 @@ import { render, screen, act, within, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import DataExportPanel from '../components/data-export/DataExportPanel'
 
+/**
+ * The panel defaults to the "All attestations" scope, which is a large export and
+ * is therefore guard-railed (#442): clicking "Generate export" opens the confirm
+ * dialog instead of starting a job. The tests below cover the job lifecycle that
+ * starts *after* that decision point, so they pick a small scope first — a small
+ * scope starts immediately, and the lifecycle is identical.
+ */
+function chooseQuickScope() {
+  fireEvent.change(screen.getByLabelText('Scope'), { target: { value: 'last-30-days' } })
+}
+
 describe('DataExportPanel', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -51,6 +62,7 @@ describe('DataExportPanel', () => {
   it('announces progress politely and reaches a ready, downloadable state', () => {
     render(<DataExportPanel tickMs={100} />)
 
+    chooseQuickScope()
     act(() => {
       screen.getByRole('button', { name: /generate export/i }).click()
     })
@@ -77,6 +89,7 @@ describe('DataExportPanel', () => {
   it('allows downloading a ready export and announces it', () => {
     render(<DataExportPanel tickMs={100} />)
 
+    chooseQuickScope()
     act(() => {
       screen.getByRole('button', { name: /generate export/i }).click()
       vi.advanceTimersByTime(100 * 6)
@@ -92,6 +105,7 @@ describe('DataExportPanel', () => {
   it('shows a Regenerate button (with confirm) for a ready export via re-run flow', () => {
     render(<DataExportPanel tickMs={100} />)
 
+    chooseQuickScope()
     act(() => {
       screen.getByRole('button', { name: /generate export/i }).click()
       vi.advanceTimersByTime(100 * 6)
@@ -109,6 +123,7 @@ describe('DataExportPanel', () => {
   it('renders an export history table with accessible headers after an export is created', () => {
     render(<DataExportPanel tickMs={100} />)
 
+    chooseQuickScope()
     act(() => {
       screen.getByRole('button', { name: /generate export/i }).click()
     })
